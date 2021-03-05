@@ -1,0 +1,9 @@
+---
+- name: "Laboratorio de Facts"
+  hosts: nodo01
+  tasks:
+    - name: "Lista todos los facts del nodo"
+      debug:
+        var: ansible_facts
+
+...
