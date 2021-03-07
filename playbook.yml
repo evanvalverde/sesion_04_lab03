@@ -1,9 +1,46 @@
 ---
 - name: "Laboratorio de Facts"
   hosts: nodo01
+  vars:
+    data_file: "/tmp/datos_{{ ansible_facts['hostname'] }}"
   tasks:
     - name: "Lista todos los facts del nodo"
       debug:
         var: ansible_facts
+
+    - name: "Crea el archivo datos_{{ ansible_facts['hostname'] }}"
+      file:
+        path: "/tmp/datos_{{ ansible_facts['hostname'] }}"
+        state: touch
+
+    - name: "Annade datos de las interfaces al archivo datos_{{ ansible_facts['hostname'] }}"
+      lineinfile:
+        path: "/tmp/datos_{{ ansible_facts['hostname'] }}"
+        line: |
+          - IP: {{ ansible_facts[item]["ipv4"]["address"] }}
+          - Mac address: {{ ansible_facts["default_ipv4"]["macaddress"] }}
+          - Gateway: {{ ansible_facts["default_ipv4"]["gateway"] }}
+          - Netmask: {{ ansible_facts[item]["ipv4"]["netmask"] }}
+
+      loop: "{{ ansible_facts['interfaces'] }}"
+      # No ha funcionado con copy + content. 
+      #  Da la impresion de que no es capaz de ir acumulando el contenido iteracion tras iteracion
+      # "gateway" no existe en las interfaces.
+      # "macaddress" no existe para la interfaz de loopback
+
+    - name: "Annade datos del almacenamiento al archivo {{ data_file }}"
+      lineinfile:
+        path: "{{ data_file }}"
+        line: |
+          - Dispositivo: {{ item.key }}
+          - Capacidad: {{ item.value.size }}
+          
+      loop: "{{ ansible_facts['devices']|dict2items }}"
+
+    - name: "Crea la partición en /dev/sdb"
+      parted:
+        device: /dev/sdb
+        number: 1
+        state: present
 
 ...
