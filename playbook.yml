@@ -3,29 +3,48 @@
   hosts: nodo01
   vars:
     data_file: "/tmp/datos_{{ ansible_facts['hostname'] }}"
+    disco: "/dev/sdb"
+    num_particion: 1
+    particion: "{{ disco }}{{ num_particion }}"
+    grupo_vol: "vg_prueba"
+    vol_logico: "lv_prueba"
+    tamanno: "100%FREE"
+    tipo_fs: "xfs"
+    dev_vol_logico: "/dev/mapper/{{ grupo_vol }}-{{ vol_logico }}"
+    punto_montaje: "/mnt/prueba"
+
   tasks:
     - name: "Lista todos los facts del nodo"
       debug:
         var: ansible_facts
 
-    - name: "Crea el archivo datos_{{ ansible_facts['hostname'] }}"
+    - name: "{{ data_file }}"
       file:
-        path: "/tmp/datos_{{ ansible_facts['hostname'] }}"
+        path: "{{ data_file }}"
         state: touch
 
-    - name: "Annade datos de las interfaces al archivo datos_{{ ansible_facts['hostname'] }}"
+    - name: "Annade datos de la interfaz 'eth0' al archivo {{ data_file }}"
+      vars:
+        iface: "eth0"
       lineinfile:
-        path: "/tmp/datos_{{ ansible_facts['hostname'] }}"
+        path: "{{ data_file }}"
         line: |
-          - IP: {{ ansible_facts[item]["ipv4"]["address"] }}
-          - Mac address: {{ ansible_facts["default_ipv4"]["macaddress"] }}
-          - Gateway: {{ ansible_facts["default_ipv4"]["gateway"] }}
-          - Netmask: {{ ansible_facts[item]["ipv4"]["netmask"] }}
+          - IP: {{ ansible_facts[iface]["ipv4"]["address"] }}
+          - Mac address: {{ ansible_facts[iface]["macaddress"] }}
+          - Gateway: {{ ansible_facts["default_ipv4"]["gateway"] }} 
+          - Netmask: {{ ansible_facts[iface]["ipv4"]["netmask"] }}
+      # "gateway" no existe en las interfaces. tomamos la de default_ipv4
+      # "macaddress" no existe para la interfaz de loopback
 
-      loop: "{{ ansible_facts['interfaces'] }}"
-      # No ha funcionado con copy + content. 
-      #  Da la impresion de que no es capaz de ir acumulando el contenido iteracion tras iteracion
-      # "gateway" no existe en las interfaces.
+    - name: "Annade datos de la interfaz 'lo' archivo {{ data_file }}"
+      vars:
+        iface: "lo"
+      lineinfile:
+        path: "{{ data_file }}"
+        line: |
+          - IP: {{ ansible_facts[iface]["ipv4"]["address"] }}
+          - Netmask: {{ ansible_facts[iface]["ipv4"]["netmask"] }}
+      # "gateway" no existe en las interfaces. no sacamos ninguna para la interfaz de loopback
       # "macaddress" no existe para la interfaz de loopback
 
     - name: "Annade datos del almacenamiento al archivo {{ data_file }}"
@@ -37,10 +56,38 @@
           
       loop: "{{ ansible_facts['devices']|dict2items }}"
 
-    - name: "Crea la partición en /dev/sdb"
+    - name: "Crea la partición en {{ disco }}"
       parted:
-        device: /dev/sdb
-        number: 1
+        device: "{{ disco }}"
+        number: "{{ num_particion }}"
         state: present
+        # Comprobar con lsblk (debe aparecer una particion sdb1)
 
+    - name: "Crea el grupo de volumenes {{ grupo_vol }} en {{ particion }}"
+      lvg:
+        vg: "{{ grupo_vol }}"
+        pvs: "{{ particion }}"
+        # Comprobar con pvs (debe aparecer el VG creado)
+
+    - name: "Crea el volumen logico {{ vol_logico }}"
+      lvol:
+        vg: "{{ grupo_vol }}"
+        lv: "{{ vol_logico }}"
+        size: "{{ tamanno }}"
+        shrink: no # Evita fallos al ejecutarlo varias veces
+        state: present
+        # Comprobar con lvdisplay
+    
+    - name: "Crea el sistema de ficheros de tipo {{ tipo_fs }}"
+      filesystem:
+        fstype: "{{ tipo_fs }}"
+        dev: "{{ dev_vol_logico }}"
+
+    - name: "Monta el sistema de ficheros en {{ punto_montaje }}"
+      mount:
+        path: "{{ punto_montaje }}"
+        src: "{{ dev_vol_logico }}"
+        fstype: "{{ tipo_fs }}"
+        state: mounted
+        # Comprobar con dev_vol_logico
 ...

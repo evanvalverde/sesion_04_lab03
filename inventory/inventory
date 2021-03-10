@@ -1,5 +1,5 @@
 [masters]
-master
+master  ansible_user=ansible
 
 [nodos]
 nodo01
