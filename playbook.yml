@@ -35,6 +35,7 @@
           - Netmask: {{ ansible_facts[iface]["ipv4"]["netmask"] }}
       # "gateway" no existe en las interfaces. tomamos la de default_ipv4
       # "macaddress" no existe para la interfaz de loopback
+      # Mejor hacer con blockinfile: ver ejemplo de FDF
 
     - name: "Annade datos de la interfaz 'lo' archivo {{ data_file }}"
       vars:
@@ -46,6 +47,7 @@
           - Netmask: {{ ansible_facts[iface]["ipv4"]["netmask"] }}
       # "gateway" no existe en las interfaces. no sacamos ninguna para la interfaz de loopback
       # "macaddress" no existe para la interfaz de loopback
+      # Mejor hacer con blockinfile: ver ejemplo de FDF
 
     - name: "Annade datos del almacenamiento al archivo {{ data_file }}"
       lineinfile:
@@ -61,12 +63,14 @@
         device: "{{ disco }}"
         number: "{{ num_particion }}"
         state: present
+        # flags: [ lvm ]
         # Comprobar con lsblk (debe aparecer una particion sdb1)
 
     - name: "Crea el grupo de volumenes {{ grupo_vol }} en {{ particion }}"
       lvg:
         vg: "{{ grupo_vol }}"
         pvs: "{{ particion }}"
+        # pesize: "2000M" 
         # Comprobar con pvs (debe aparecer el VG creado)
 
     - name: "Crea el volumen logico {{ vol_logico }}"
@@ -90,4 +94,6 @@
         fstype: "{{ tipo_fs }}"
         state: mounted
         # Comprobar con dev_vol_logico
+
+        # Olvide volver a sacar la información de los dispositivos de almacenamiento
 ...
